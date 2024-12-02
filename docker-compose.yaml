@@ -1,0 +1,60 @@
+version: '3.8'
+services:
+  database-monitor:
+    build:
+      context: . # Путь к Dockerfile
+    container_name: database-monitor
+    ports:
+      - "8080:8080"  
+    environment:
+      MYSQL_HOST: test-mysql  
+      MYSQL_PORT: 3306
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: dima
+      MYSQL_DATABASE: test_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    networks:
+      vpcbr:
+        ipv4_address: 172.10.0.2
+    depends_on:
+      - mysql
+      - redis
+    command: ["./main"] 
+
+  mysql:
+    image: mysql/mysql-server:latest
+    container_name: test-mysql
+    ports:
+      - "3306:3306" 
+    networks:
+      vpcbr:
+        ipv4_address: 172.10.0.3
+    environment:
+      MYSQL_ROOT_PASSWORD: "dima" 
+      MYSQL_DATABASE: "test_db" 
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --bind-address=0.0.0.0
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      vpcbr:
+        ipv4_address: 172.10.0.4
+    command: ["redis-server", "--bind", "0.0.0.0", "--appendonly", "yes"]
+
+networks:
+  vpcbr:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.10.0.0/16
