@@ -1,39 +1,64 @@
-Database Job Monitor
+# Database Job Monitor
 
-Project Overview
+A lightweight microservice designed to monitor and track database jobs with support for interval-based job checking and Redis-backed session management. The application features a simple web interface built with TailwindCSS and APIs built using Gin framework in Golang.
 
-The Database Job Monitor is a lightweight microservice application designed to connect to a MySQL database, monitor scheduled jobs, and provide insights through a user-friendly web interface. It also integrates with Redis for session management and Prometheus for job alerting. The backend is implemented in Go using the Gin web framework.
+## Features
 
-Features
+- **Database Monitoring:**
+  - Connect to MySQL databases and fetch job statuses.
+  - Monitor job status (e.g., Running, Completed, Failed).
 
-Database Connection: Connect to a MySQL database with user-provided credentials and interval.
+- **Dynamic Intervals:**
+  - Users can set custom intervals for job monitoring.
 
-Job Monitoring: Fetch and display job statuses from the database.
+- **Redis-Backed Session Management:**
+  - Store session data securely in Redis.
 
-Session Management: Store connection details and user-defined intervals in Redis.
+- **Prometheus Integration:**
+  - Export job metrics to Prometheus for monitoring failed jobs.
 
-Dynamic Intervals: User-defined job monitoring intervals.
+- **Lightweight Frontend:**
+  - Built using HTML and TailwindCSS for responsive UI.
 
-Prometheus Integration: Alerts for failed jobs.
+## Prerequisites
 
-Frontend: Simple web interface built with HTML, CSS (TailwindCSS), and JavaScript.
+- Docker
+- Docker Compose
+- Golang (if running locally)
+- Redis and MySQL
 
-Technologies Used
+## Setup Instructions
 
-Backend: Go, Gin Framework
+### Clone the Repository
+```bash
+# Clone the repository
+git clone <repository-url>
+cd database_job_monitor
+```
 
-Database: MySQL
+### Environment Setup
 
-Session Storage: Redis
+- Create a `.env` file for environment-specific configurations.
 
-Monitoring: Prometheus
+```env
+REDIS_HOST=redis
+REDIS_PORT=6379
+MYSQL_HOST=test-mysql
+MYSQL_PORT=3306
+MYSQL_USER=admin
+MYSQL_PASSWORD=admin
+MYSQL_DATABASE=test_db
+```
 
-Frontend: TailwindCSS, HTML, JavaScript
+### Run with Docker Compose
+```bash
+# Start services with Docker Compose
+docker-compose up -d --build
+```
 
-Containerization: Docker, Docker Compose
+### Folder Structure
 
-Project Structure
-
+```
 ├── Dockerfile
 ├── README.md
 ├── docker-compose.yaml
@@ -41,7 +66,7 @@ Project Structure
 ├── go.sum
 ├── handlers
 │   ├── connect.go
-│   ├── html.go
+│   ├── hmtl.go
 │   └── jobs.go
 ├── main.go
 ├── models
@@ -51,95 +76,60 @@ Project Structure
 └── utils
     ├── redis_client.go
     └── response.go
+```
 
-Setup Instructions
+### Access the Application
 
-Prerequisites
+1. Open a browser and navigate to `http://localhost:8080`
+2. Connect to a MySQL database via the connection form.
+3. View job statuses in the table.
 
-Docker and Docker Compose installed.
+## API Endpoints
 
-MySQL and Redis are included in the Docker Compose setup.
+### `/api/connect`
+**POST**: Connect to the database.
 
-Build and Run
+- **Body:**
+  ```json
+  {
+    "hostname": "127.0.0.1",
+    "port": "3306",
+    "username": "admin",
+    "password": "admin",
+    "database": "test_db",
+    "interval": 30
+  }
+  ```
 
-Clone the repository:
+### `/api/jobs`
+**GET**: Fetch job data for a connected session.
 
-git clone <repository_url>
-cd database_job_monitor
+- **Headers:**
+  - `Session-ID: <session_id>`
 
-Build and start the application:
+### `/metrics`
+**GET**: Export metrics to Prometheus.
 
-docker-compose up -d --build
+## Troubleshooting
 
-Access the web interface:
-Navigate to http://localhost:8080 in your browser.
+- Ensure Docker and Docker Compose are installed and running.
+- Verify that Redis and MySQL are reachable and properly configured.
+- Check logs for error messages:
+  ```bash
+  docker logs database-monitor
+  ```
 
-Configuration
+## Technologies Used
 
-The application uses environment variables for configuration. These are defined in the docker-compose.yaml file:
+- **Backend:** Golang, Gin Framework
+- **Frontend:** HTML, TailwindCSS
+- **Database:** MySQL
+- **Cache/Session:** Redis
+- **Monitoring:** Prometheus
 
-MYSQL_HOST: MySQL server hostname (default: test-mysql)
-
-MYSQL_PORT: MySQL server port (default: 3306)
-
-MYSQL_USER: MySQL username
-
-MYSQL_PASSWORD: MySQL password
-
-MYSQL_DATABASE: MySQL database name
-
-REDIS_HOST: Redis server hostname (default: redis)
-
-REDIS_PORT: Redis server port (default: 6379)
-
-Endpoints
-
-API Endpoints
-
-POST /api/connect
-
-Connect to the MySQL database with user-provided credentials.
-
-Request Body:
-
-{
-  "hostname": "127.0.0.1",
-  "port": "3306",
-  "username": "root",
-  "password": "password",
-  "database": "test_db",
-  "interval": 30
-}
-
-GET /api/jobs
-
-Fetch job statuses from the connected database.
-
-Requires Session-ID header.
-
-Frontend
-
-Static HTML served at /.
-
-Prometheus Integration
-
-The application exposes a /metrics endpoint for Prometheus to scrape. Failed jobs are monitored and exposed as metrics.
-
-Known Issues
-
-Redis and MySQL should be correctly networked and accessible by the database-monitor container.
-
-Ensure that job table structure matches the expected format.
-
-Future Enhancements
-
-Extend support for additional database types.
-
-Implement advanced alerting mechanisms.
-
-Add authentication and authorization for API endpoints.
-
-License
-
+## License
 This project is licensed under the MIT License. See the LICENSE file for details.
 
+---
+
+#golang #redis #mysql #prometheus #gin #docker #tailwindcss
