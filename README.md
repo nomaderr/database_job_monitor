@@ -1,4 +1,3 @@
-# database_job_monitor
 Database Job Monitor
 
 Project Overview
