@@ -1,24 +1,37 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"net/http"
-	"os"
-
 	"database_app/handlers"
 	"database_app/utils"
+	"log"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	redisHost := os.Getenv("REDIS_HOST")
-	redisPort := os.Getenv("REDIS_PORT")
-	utils.InitializeRedis(redisHost, redisPort)
+	// Initialize Redis client
+	utils.InitializeRedis("redis", "6379")
 
-	http.HandleFunc("/connect", handlers.ConnectHandler) // API endpoint to connect to the database
-	http.HandleFunc("/jobs", handlers.GetJobs)           // API endpoint to fetch jobs
-	http.HandleFunc("/", handlers.ServeHTML)             // Serve the front-end
+	// Create a Gin router
+	router := gin.Default()
 
-	fmt.Println("Server started at http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	// Load HTML templates
+	router.LoadHTMLGlob("templates/*")
+
+	// Serve frontend
+	router.GET("/", handlers.ServeHTML)
+
+	// API routes
+	api := router.Group("/api")
+	{
+		api.POST("/connect", handlers.ConnectHandler) // Database connection handler
+		api.GET("/jobs", handlers.GetJobs)            // Fetch jobs
+	}
+
+	// Start background job checker
+	go handlers.StartJobChecker()
+
+	// Run the server
+	log.Println("Starting server on :8080")
+	router.Run(":8080")
 }

@@ -1,5 +1,7 @@
 package models
 
+import "encoding/json"
+
 type Job struct {
 	Hostname     string `json:"hostname"`
 	DatabaseName string `json:"database_name"`
@@ -9,9 +11,10 @@ type Job struct {
 }
 
 type DBConnection struct {
-	Hostname string `json:"hostname"`
-	Port     string `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Database string `json:"database"`
+	Hostname string      `json:"hostname"`
+	Port     string      `json:"port"`
+	Username string      `json:"username"`
+	Password string      `json:"password"`
+	Database string      `json:"database"`
+	Interval json.Number `json:"interval"`
 }

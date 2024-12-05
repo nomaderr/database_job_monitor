@@ -7,13 +7,11 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 flex justify-center items-center min-h-screen">
-
 <div class="bg-white shadow-md rounded-lg p-6 w-full max-w-4xl">
-    <h2 class="text-2xl font-bold text-gray-700 mb-4">Database Job Monitor</h2>
+    <h2 class="text-center text-2xl font-bold text-gray-700 mb-4">Database Job Monitor</h2>
 
     <!-- Connection Form -->
     <div class="bg-gray-50 p-4 rounded-lg shadow-sm mb-6">
-        <h3 class="text-lg font-semibold text-gray-700 mb-3">Connect to Database</h3>
         <form id="connection-form" class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -35,9 +33,15 @@
                     <input type="password" id="password" class="w-full px-4 py-2 border rounded-lg" placeholder="Enter your password">
                 </div>
             </div>
-            <div>
-                <label for="database" class="block text-sm font-medium text-gray-600">Database</label>
-                <input type="text" id="database" class="w-full px-4 py-2 border rounded-lg" placeholder="e.g., test_db">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="database" class="block text-sm font-medium text-gray-600">Database</label>
+                    <input type="text" id="database" class="w-full px-4 py-2 border rounded-lg" placeholder="e.g., test_db">
+                </div>
+                <div>
+                    <label for="interval" class="block text-sm font-medium text-gray-600">Interval (seconds)</label>
+                    <input type="number" id="interval" class="w-full px-4 py-2 border rounded-lg" placeholder="e.g., 30">
+                </div>
             </div>
             <button type="button" id="connect-btn" class="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600">
                 Connect to Database
@@ -50,42 +54,40 @@
         <table class="min-w-full bg-white border border-gray-200 rounded-lg" id="jobs-table">
             <thead class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
             <tr>
-                <th class="py-3 px-6 text-left">Hostname</th>
-                <th class="py-3 px-6 text-left">Database Name</th>
-                <th class="py-3 px-6 text-left">Job Name</th>
-                <th class="py-3 px-6 text-left">Status</th>
-                <th class="py-3 px-6 text-left">Last Run</th>
+                <th class="py-3 px-6 text-center">Hostname</th>
+                <th class="py-3 px-6 text-center">Database Name</th>
+                <th class="py-3 px-6 text-center">Job Name</th>
+                <th class="py-3 px-6 text-center">Status</th>
+                <th class="py-3 px-6 text-center">Last Run</th>
             </tr>
             </thead>
             <tbody class="text-gray-700 text-sm font-light" id="jobs-body">
-            <!-- Data will be dynamically inserted here -->
             </tbody>
         </table>
     </div>
 </div>
 
 <script>
-    let isConnected = false; // Флаг подключения к базе
+    let isConnected = false;
 
-    // Fetch jobs from API
     async function fetchJobs() {
         if (!isConnected) {
             console.warn("Database is not connected yet. Skipping fetch.");
             return;
         }
 
-        const sessionId = localStorage.getItem('session_id'); // Получаем сохраненный Session-ID
+        const sessionId = localStorage.getItem('session_id');
         if (!sessionId) {
             console.error("No Session-ID found. Please connect to the database first.");
             return;
         }
 
         try {
-            const response = await fetch('http://localhost:8080/jobs', {
+            const response = await fetch('/api/jobs', {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Session-ID': sessionId // Добавляем Session-ID в заголовок
+                    'Session-ID': sessionId
                 }
             });
 
@@ -95,27 +97,19 @@
             }
 
             const jobs = await response.json();
-
             const jobsBody = document.getElementById('jobs-body');
-            jobsBody.innerHTML = ''; // Clear any existing data
+            jobsBody.innerHTML = '';
 
             jobs.forEach(job => {
-                let statusClass = 'text-gray-700';
-                if (job.status === 'Running') {
-                    statusClass = 'text-green-500';
-                } else if (job.status === 'Failed') {
-                    statusClass = 'text-red-500';
-                } else if (job.status === 'Completed') {
-                    statusClass = 'text-blue-500';
-                }
-
+                const statusClass = job.status === 'Failed' ? 'text-red-700 text-base' :
+                    job.status === 'Running' ? 'text-blue-700 text-base' : 'text-green-700 text-base';
                 const row = `
                     <tr class="border-b border-gray-200 hover:bg-gray-100">
-                        <td class="py-3 px-6 text-left">${job.hostname}</td>
-                        <td class="py-3 px-6 text-left">${job.database_name}</td>
-                        <td class="py-3 px-6 text-left">${job.job_name}</td>
-                        <td class="py-3 px-6 text-left ${statusClass}">${job.status}</td>
-                        <td class="py-3 px-6 text-left">${job.last_run}</td>
+                        <td class="py-3 px-6 text-center">${job.hostname}</td>
+                        <td class="py-3 px-6 text-center">${job.database_name}</td>
+                        <td class="py-3 px-6 text-center">${job.job_name}</td>
+                        <td class="py-3 px-6 text-center ${statusClass}">${job.status}</td>
+                        <td class="py-3 px-6 text-center">${job.last_run}</td>
                     </tr>
                 `;
                 jobsBody.innerHTML += row;
@@ -125,35 +119,29 @@
         }
     }
 
-    // Handle form submission
     document.getElementById('connect-btn').addEventListener('click', async () => {
         const hostname = document.getElementById('hostname').value;
         const port = document.getElementById('port').value;
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
         const database = document.getElementById('database').value;
+        const interval = document.getElementById('interval').value;
 
         try {
-            const response = await fetch('http://localhost:8080/connect', {
+            const response = await fetch('/api/connect', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ hostname, port, username, password, database })
+                body: JSON.stringify({ hostname, port, username, password, database, interval })
             });
 
             if (response.ok) {
                 const responseData = await response.json();
                 alert(responseData.message || 'Connected successfully!');
-
-                // Сохраняем Session-ID в localStorage
-                if (responseData.session_id) {
-                    localStorage.setItem('session_id', responseData.session_id);
-                    console.log('Session-ID saved:', responseData.session_id);
-                }
-
-                isConnected = true; // Устанавливаем флаг подключения
-                fetchJobs(); // Fetch jobs after connection
+                localStorage.setItem('session_id', responseData.session_id);
+                isConnected = true;
+                fetchJobs();
             } else {
                 const errorData = await response.json();
                 alert(`Error: ${errorData.message || 'Failed to connect to database'}`);
@@ -164,20 +152,13 @@
         }
     });
 
-    // Fetch jobs on page load
     window.onload = () => {
-        const sessionId = localStorage.getItem('session_id'); // Проверяем, есть ли сохраненная сессия
+        const sessionId = localStorage.getItem('session_id');
         if (sessionId) {
-            console.log('Session-ID found:', sessionId);
-            isConnected = true; // Устанавливаем флаг подключения
-            fetchJobs(); // Если сессия есть, сразу получаем данные
-        } else {
-            console.log("Waiting for database connection...");
+            isConnected = true;
+            fetchJobs();
         }
     };
 </script>
-
-
-
 </body>
 </html>

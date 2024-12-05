@@ -4,67 +4,75 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"database_app/models"
 	"database_app/utils"
+
+	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-func GetJobs(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+// Prometheus metrics
+var (
+	failedJobsMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "failed_jobs_count",
+			Help: "Number of failed jobs",
+		},
+		[]string{"database_name", "job_name"},
+	)
+)
 
-	// Получаем session_id из заголовка
-	sessionID := r.Header.Get("Session-ID")
+func init() {
+	prometheus.MustRegister(failedJobsMetric)
+}
+
+// GetJobs fetches jobs from the database for a specific session
+func GetJobs(c *gin.Context) {
+	sessionID := c.GetHeader("Session-ID")
 	if sessionID == "" {
-		utils.RespondWithError(w, http.StatusBadRequest, "Missing Session-ID header")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing Session-ID header"})
 		return
 	}
 
-	// Извлекаем данные подключения из Redis
 	ctx := context.Background()
 	sessionData, err := utils.RedisClient.Get(ctx, sessionID).Result()
 	if err != nil {
-		utils.RespondWithError(w, http.StatusUnauthorized, "Invalid or expired session")
+		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
 		log.Println("Redis get error:", err)
 		return
 	}
 
-	// Десериализуем данные подключения из JSON
 	var conn models.DBConnection
 	if err := json.Unmarshal([]byte(sessionData), &conn); err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to parse session data")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse session data"})
 		log.Println("JSON unmarshal error:", err)
 		return
 	}
 
-	// Формируем строку DSN
-	currentDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", conn.Username, conn.Password, conn.Hostname, conn.Port, conn.Database)
-
-	// Подключаемся к базе данных
-	db, err := sql.Open("mysql", currentDSN)
+	db, err := sql.Open("mysql", conn.Username+":"+conn.Password+"@tcp("+conn.Hostname+":"+conn.Port+")/"+conn.Database)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to connect to database")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to database"})
 		log.Println("Database connection error:", err)
 		return
 	}
 	defer db.Close()
 
-	// Выполняем SQL-запрос
 	var hostname string
 	err = db.QueryRow("SELECT @@hostname").Scan(&hostname)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to fetch hostname")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch hostname"})
 		log.Println("Error fetching hostname:", err)
 		return
 	}
 
 	rows, err := db.Query(`SELECT DATABASE() AS database_name, name AS job_name, status, last_run FROM jobs`)
 	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch jobs"})
 		log.Println("Error executing query:", err)
-		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to fetch jobs")
 		return
 	}
 	defer rows.Close()
@@ -72,19 +80,115 @@ func GetJobs(w http.ResponseWriter, r *http.Request) {
 	var jobs []models.Job
 	for rows.Next() {
 		var job models.Job
-		job.Hostname = hostname
+		job.Hostname = hostname // Hostname field
 		if err := rows.Scan(&job.DatabaseName, &job.JobName, &job.Status, &job.LastRun); err != nil {
-			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to process job data")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process job data"})
 			log.Println("Error scanning job:", err)
 			return
 		}
+
+		// Update Prometheus metric for failed jobs
+		if job.Status == "Failed" {
+			failedJobsMetric.WithLabelValues(job.DatabaseName, job.JobName).Inc()
+		}
+
 		jobs = append(jobs, job)
 	}
 
-	if len(jobs) == 0 {
-		utils.RespondWithError(w, http.StatusNotFound, "No jobs found in the database")
+	c.JSON(http.StatusOK, jobs)
+}
+
+// StartJobChecker periodically checks for jobs in all active sessions
+// func StartJobChecker() {
+// 	go func() {
+// 		for {
+// 			time.Sleep(10 * time.Second) // Frequency of Redis session checking
+
+// 			ctx := context.Background()
+// 			keys, err := utils.RedisClient.Keys(ctx, "session_*").Result()
+// 			if err != nil {
+// 				log.Println("Error fetching keys from Redis:", err)
+// 				continue
+// 			}
+
+// 			for _, key := range keys {
+// 				sessionData, err := utils.RedisClient.Get(ctx, key).Result()
+// 				if err != nil {
+// 					log.Println("Error fetching session data:", err)
+// 					continue
+// 				}
+
+// 				var conn models.DBConnection
+// 				if err := json.Unmarshal([]byte(sessionData), &conn); err != nil {
+// 					log.Println("Error unmarshalling session data:", err)
+// 					continue
+// 				}
+
+//					checkJobs(conn)
+//				}
+//			}
+//		}()
+//	}
+func StartJobChecker() {
+	go func() {
+		for {
+			ctx := context.Background()
+			keys, err := utils.RedisClient.Keys(ctx, "session_*").Result()
+			if err != nil {
+				log.Println("Error fetching keys from Redis:", err)
+				time.Sleep(10 * time.Second) // standart value
+				continue
+			}
+
+			for _, key := range keys {
+				sessionData, err := utils.RedisClient.Get(ctx, key).Result()
+				if err != nil {
+					log.Println("Error fetching session data:", err)
+					continue
+				}
+
+				var conn models.DBConnection
+				if err := json.Unmarshal([]byte(sessionData), &conn); err != nil {
+					log.Println("Error unmarshalling session data:", err)
+					continue
+				}
+
+				// interval from json.Number to int
+				interval, err := conn.Interval.Int64()
+				if err != nil || interval <= 0 {
+					interval = 10 // Default value
+				}
+
+				checkJobs(conn)
+
+				time.Sleep(time.Duration(interval) * time.Second) // Dynamic interval
+			}
+		}
+	}()
+}
+
+// checkJobs fetches and logs jobs for a specific connection
+func checkJobs(conn models.DBConnection) {
+	db, err := sql.Open("mysql", conn.Username+":"+conn.Password+"@tcp("+conn.Hostname+":"+conn.Port+")/"+conn.Database)
+	if err != nil {
+		log.Println("Failed to connect to database for session:", conn.Hostname, err)
 		return
 	}
+	defer db.Close()
 
-	json.NewEncoder(w).Encode(jobs)
+	rows, err := db.Query(`SELECT name, status FROM jobs WHERE status = "Failed"`)
+	if err != nil {
+		log.Println("Error executing query for failed jobs:", err)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var jobName, status string
+		if err := rows.Scan(&jobName, &status); err != nil {
+			log.Println("Error scanning job data:", err)
+			continue
+		}
+		log.Printf("Job %s is in %s state\n", jobName, status)
+	}
 }

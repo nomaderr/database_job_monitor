@@ -5,11 +5,12 @@ import (
 	"log"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	"github.com/go-redis/redis/v8"
 )
 
 var RedisClient *redis.Client
 
+// InitializeRedis initializes the Redis client with the given host and port
 func InitializeRedis(host string, port string) {
 	addr := host + ":" + port
 	RedisClient = redis.NewClient(&redis.Options{
@@ -26,5 +27,5 @@ func InitializeRedis(host string, port string) {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
 
-	log.Println("Connected to Redis:", addr)
+	log.Println("Connected to Redis at", addr)
 }

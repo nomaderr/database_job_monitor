@@ -2,7 +2,7 @@ version: '3.8'
 services:
   database-monitor:
     build:
-      context: . # Путь к Dockerfile
+      context: . 
     container_name: database-monitor
     ports:
       - "8080:8080"  
@@ -10,7 +10,7 @@ services:
       MYSQL_HOST: test-mysql  
       MYSQL_PORT: 3306
       MYSQL_USER: admin
-      MYSQL_PASSWORD: dima
+      MYSQL_PASSWORD: admin
       MYSQL_DATABASE: test_db
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -31,7 +31,7 @@ services:
       vpcbr:
         ipv4_address: 172.10.0.3
     environment:
-      MYSQL_ROOT_PASSWORD: "dima" 
+      MYSQL_ROOT_PASSWORD: "admin" 
       MYSQL_DATABASE: "test_db" 
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
